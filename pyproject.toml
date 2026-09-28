@@ -1,0 +1,21 @@
+[project]
+name = "pglite-wasm"
+version = "0.1.0"
+description = "In-memory Postgres (PGlite) for Python tests, running in-process on wasmtime"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "wasmtime>=49.0.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.15,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "asyncpg>=0.31.0",
+    "psycopg[binary]>=3.3.6",
+    "pytest>=9.1.1",
+    "sqlalchemy>=2.1.1",
+]
