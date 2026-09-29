@@ -19,5 +19,10 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cp "$HERE/scripts/make-pgdata.mjs" "$WORK/"
 (cd "$WORK" && npm init -y >/dev/null && npm install --silent "@electric-sql/pglite@$VERSION" \
-    && node make-pgdata.mjs "$OUT/pgdata.tar.gz")
+    && node make-pgdata.mjs "$WORK/pgdata")
+if [ -e "$WORK/pgdata/postmaster.pid" ]; then
+    echo "error: postmaster.pid left behind: PGDATA was not shut down cleanly" >&2
+    exit 1
+fi
+tar -C "$WORK/pgdata" --owner=0 --group=0 --numeric-owner -czf "$OUT/pgdata.tar.gz" .
 ls -la "$OUT"
