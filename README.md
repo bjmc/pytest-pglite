@@ -50,9 +50,24 @@ Options (`pytest.ini`/`pyproject.toml`): `pglite_busy_timeout`, and `pglite_log`
 
 ## Development
 
-The build artifacts come from a pglite checkout. They are built with `pnpm wasm:build:standalone` (see `packages/pglite-standalone` there), and collected with:
+The build artifacts come from a pglite checkout. They are built with `pnpm wasm:build:standalone` (see `packages/pglite-standalone` there), and collected into `src/pglite_wasm/_artifacts/` with:
 
 ```
 PGLITE_REPO=../pglite scripts/fetch-artifacts.sh
 uv run pytest
 ```
+
+`fetch-artifacts.sh` also records where the artifacts came from in `_artifacts/BUILD_INFO`.
+
+## Building
+
+```
+scripts/fetch-artifacts.sh   # first: the wheel is only as good as _artifacts/
+uv build
+```
+
+This produces a pure-Python `py3-none-any` wheel (the WASM module is platform independent; `wasmtime` provides the platform-specific runtime) and an sdist that includes the artifacts, so neither needs Node or the WASM toolchain to install.
+
+## License
+
+Apache-2.0. The wheel includes PGlite (Apache-2.0) and PostgreSQL (PostgreSQL License), see `licenses/`.

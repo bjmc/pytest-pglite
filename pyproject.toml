@@ -3,7 +3,18 @@ name = "pglite-wasm"
 version = "0.1.0"
 description = "In-memory Postgres (PGlite) for Python tests, running in-process on wasmtime"
 readme = "README.md"
+license = "Apache-2.0 AND PostgreSQL"
+license-files = ["LICENSE", "licenses/*"]
 requires-python = ">=3.12"
+keywords = ["postgres", "postgresql", "pglite", "wasm", "wasmtime", "testing", "pytest"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Database",
+    "Topic :: Software Development :: Testing",
+]
 dependencies = [
     "wasmtime>=49.0.0",
 ]
@@ -29,3 +40,7 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = "-p pytester"
+
+[tool.uv.build-backend]
+# the sdist builds without Node or the WASM toolchain: it carries the artifacts too
+source-include = ["tests/**", "scripts/**"]

@@ -25,4 +25,10 @@ if [ -e "$WORK/pgdata/postmaster.pid" ]; then
     exit 1
 fi
 tar -C "$WORK/pgdata" --owner=0 --group=0 --numeric-owner -czf "$OUT/pgdata.tar.gz" .
+# provenance of the artifacts
+cat > "$OUT/BUILD_INFO" <<END
+pglite_commit=$(git -C "$PGLITE_REPO" rev-parse HEAD)
+postgres_pglite_commit=$(git -C "$PGLITE_REPO/postgres-pglite" rev-parse HEAD)
+pgdata_npm_version=@electric-sql/pglite@$VERSION
+END
 ls -la "$OUT"
