@@ -45,13 +45,34 @@ def _last_ready_status(response: bytes) -> bytes | None:
     return status
 
 
-def _error_response(code: str, message: str) -> bytes:
-    """An ErrorResponse followed by ReadyForQuery (idle)."""
-    fields = b"".join(
-        kind + value.encode() + b"\0"
-        for kind, value in ((b"S", "ERROR"), (b"V", "ERROR"), (b"C", code), (b"M", message))
-    ) + b"\0"
-    return b"E" + struct.pack("!I", len(fields) + 4) + fields + b"Z\0\0\0\5I"
+def _error_response(
+    code: str, message: str, *, hint: str | None = None, fatal: bool = False
+) -> bytes:
+    """An ErrorResponse; for a non-fatal error, followed by ReadyForQuery (idle)."""
+    severity = "FATAL" if fatal else "ERROR"
+    items = [(b"S", severity), (b"V", severity), (b"C", code), (b"M", message)]
+    if hint:
+        items.append((b"H", hint))
+    fields = b"".join(kind + value.encode() + b"\0" for kind, value in items) + b"\0"
+    response = b"E" + struct.pack("!I", len(fields) + 4) + fields
+    return response if fatal else response + b"Z\0\0\0\5I"
+
+
+def _startup_params(packet: bytes) -> dict[str, str]:
+    """The parameters of a StartupMessage (length, protocol version, then key/value pairs)."""
+    items = packet[8:].split(b"\0")
+    return {
+        items[i].decode(): items[i + 1].decode()
+        for i in range(0, len(items) - 1, 2)
+        if items[i]
+    }
+
+
+BUSY_HINT = (
+    "PGlite runs a single backend: while one connection is in a transaction, "
+    "the others have to wait. In tests, make the code under test use the "
+    "test's connection instead of opening its own."
+)
 
 
 class Multiplexer:
@@ -82,9 +103,9 @@ class Multiplexer:
             ):
                 return _error_response(
                     "55006",  # object_in_use
-                    f"PGlite backend is busy: another connection has been in a transaction "
-                    f"for more than {self.busy_timeout}s (PGlite runs a single backend, so "
-                    f"connections cannot work concurrently)",
+                    f"PGlite backend is busy: another connection has been in a "
+                    f"transaction for more than {self.busy_timeout}s",
+                    hint=BUSY_HINT,
                 )
             self._owner = conn
             try:
@@ -190,6 +211,20 @@ class _Connection:
                 return False  # queries cannot be cancelled
             if code != PROTOCOL_3:
                 return False
+            params = _startup_params(header + rest)
+            database = params.get("database") or params.get("user")
+            if database != self.server.database:
+                # the backend is attached to a single database, and would silently
+                # serve that one instead
+                self.sock.sendall(
+                    _error_response(
+                        "3D000",  # invalid_catalog_name
+                        f'database "{database}" is not available: PGlite serves '
+                        f'a single database, "{self.server.database}"',
+                        fatal=True,
+                    )
+                )
+                return False
             self.sock.sendall(self.server.multiplexer.execute(self, header + rest))
             return True
 
@@ -203,8 +238,10 @@ class Server:
         socket_dir: str | os.PathLike | None = None,
         port: int = 5432,
         busy_timeout: float = 30.0,
+        database: str = "postgres",
     ):
         self.multiplexer = Multiplexer(backend, busy_timeout)
+        self.database = database
         self._own_dir = socket_dir is None
         self.socket_dir = Path(socket_dir or tempfile.mkdtemp(prefix="pglite-"))
         self.port = port

@@ -8,6 +8,13 @@ dependencies = [
     "wasmtime>=49.0.0",
 ]
 
+[project.optional-dependencies]
+psycopg = ["psycopg>=3.1"]
+sqlalchemy = ["sqlalchemy>=2.0", "psycopg>=3.1"]
+
+[project.entry-points.pytest11]
+pglite = "pglite_wasm.pytest_plugin"
+
 [build-system]
 requires = ["uv_build>=0.12.15,<0.13.0"]
 build-backend = "uv_build"
@@ -19,3 +26,6 @@ dev = [
     "pytest>=9.1.1",
     "sqlalchemy>=2.1.1",
 ]
+
+[tool.pytest.ini_options]
+addopts = "-p pytester"

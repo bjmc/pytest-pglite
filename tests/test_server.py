@@ -119,3 +119,10 @@ def test_sqlalchemy(pg):
             assert session.scalars(sa.select(User.name).order_by(User.id)).all() == ["ada", "grace"]
     finally:
         engine.dispose()
+
+
+def test_other_databases_are_rejected(pg):
+    with pytest.raises(psycopg.OperationalError, match='database "other" is not available'):
+        psycopg.connect(pg.dsn.replace("dbname=postgres", "dbname=other"))
+    with psycopg.connect(pg.dsn) as conn:  # the backend is unaffected
+        assert conn.execute("SELECT current_database()").fetchone() == ("postgres",)

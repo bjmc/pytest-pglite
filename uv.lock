@@ -77,6 +77,15 @@ dependencies = [
     { name = "wasmtime" },
 ]
 
+[package.optional-dependencies]
+psycopg = [
+    { name = "psycopg" },
+]
+sqlalchemy = [
+    { name = "psycopg" },
+    { name = "sqlalchemy" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "asyncpg" },
@@ -86,7 +95,13 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "wasmtime", specifier = ">=49.0.0" }]
+requires-dist = [
+    { name = "psycopg", marker = "extra == 'psycopg'", specifier = ">=3.1" },
+    { name = "psycopg", marker = "extra == 'sqlalchemy'", specifier = ">=3.1" },
+    { name = "sqlalchemy", marker = "extra == 'sqlalchemy'", specifier = ">=2.0" },
+    { name = "wasmtime", specifier = ">=49.0.0" },
+]
+provides-extras = ["psycopg", "sqlalchemy"]
 
 [package.metadata.requires-dev]
 dev = [
