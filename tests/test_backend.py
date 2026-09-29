@@ -1,6 +1,6 @@
 import struct
 
-from pglite_wasm import Backend
+from pytest_pglite import Backend
 
 
 def startup() -> bytes:

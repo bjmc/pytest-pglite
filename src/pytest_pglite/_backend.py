@@ -54,7 +54,7 @@ DEFAULT_ENV = {
     "ICU_DATA": "/pglite/icu",
 }
 
-ARTIFACTS_DIR_ENV = "PGLITE_WASM_ARTIFACTS"
+ARTIFACTS_DIR_ENV = "PYTEST_PGLITE_ARTIFACTS"
 
 
 class PGliteError(RuntimeError):

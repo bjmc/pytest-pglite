@@ -1,5 +1,5 @@
 #!/bin/bash
-# Collect the standalone PGlite build artifacts into src/pglite_wasm/_artifacts:
+# Collect the standalone PGlite build artifacts into src/pytest_pglite/_artifacts:
 #   - pglite-standalone.wasm, pglite-standalone-fs.tar.gz: from a pglite checkout,
 #     built with `pnpm wasm:build:standalone`
 #   - pgdata.tar.gz: an initialized PGDATA, created with the JS build of PGlite
@@ -8,7 +8,7 @@ set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 PGLITE_REPO=${PGLITE_REPO:-"$HERE/../pglite"}
-OUT="$HERE/src/pglite_wasm/_artifacts"
+OUT="$HERE/src/pytest_pglite/_artifacts"
 RELEASE="$PGLITE_REPO/packages/pglite-standalone/release"
 
 mkdir -p "$OUT"

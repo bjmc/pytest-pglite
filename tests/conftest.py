@@ -1,6 +1,6 @@
 import pytest
 
-from pglite_wasm import PGlite, Runtime
+from pytest_pglite import PGlite, Runtime
 
 
 @pytest.fixture(scope="session")

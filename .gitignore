@@ -2,4 +2,4 @@
 __pycache__/
 *.egg-info/
 dist/
-src/pglite_wasm/_artifacts/
+src/pytest_pglite/_artifacts/

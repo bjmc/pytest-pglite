@@ -1,4 +1,4 @@
-# pglite-wasm
+# pytest-pglite
 
 In-memory Postgres for Python tests: [PGlite](https://github.com/electric-sql/pglite)'s Postgres 18, built as a standalone WASM module, running in-process on [wasmtime](https://github.com/bytecodealliance/wasmtime-py). No server to install, no Docker, no Node.
 
@@ -6,7 +6,7 @@ Each `PGlite` is a separate, throwaway database, served on a Unix socket so any 
 
 ```python
 import psycopg
-from pglite_wasm import PGlite
+from pytest_pglite import PGlite
 
 with PGlite() as pg:
     with psycopg.connect(pg.dsn) as conn:
@@ -50,7 +50,7 @@ Options (`pytest.ini`/`pyproject.toml`): `pglite_busy_timeout`, and `pglite_log`
 
 ## Development
 
-The build artifacts come from a pglite checkout. They are built with `pnpm wasm:build:standalone` (see `packages/pglite-standalone` there), and collected into `src/pglite_wasm/_artifacts/` with:
+The build artifacts come from a pglite checkout. They are built with `pnpm wasm:build:standalone` (see `packages/pglite-standalone` there), and collected into `src/pytest_pglite/_artifacts/` with:
 
 ```
 PGLITE_REPO=../pglite scripts/fetch-artifacts.sh
