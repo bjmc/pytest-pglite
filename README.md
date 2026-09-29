@@ -59,6 +59,8 @@ uv run pytest
 
 `fetch-artifacts.sh` also records where the artifacts came from in `_artifacts/BUILD_INFO`.
 
+CI (`.github/workflows/ci.yml`) builds the artifacts from the pglite commit pinned in `pglite.env` (cached per commit, as the WASM build takes a while), then runs the tests on Linux and macOS and builds the package. By default the pglite repository is `<owner of this repository>/pglite`. To package a newer pglite build, update `PGLITE_REF`.
+
 ## Building
 
 ```
