@@ -50,7 +50,7 @@ Options (`pytest.ini`/`pyproject.toml`): `pglite_busy_timeout`, and `pglite_log`
 
 ## Development
 
-The build artifacts come from a pglite checkout. They are built with `pnpm wasm:build:standalone` (see `packages/pglite-standalone` there), and collected into `src/pytest_pglite/_artifacts/` with:
+The build artifacts come from a pglite checkout. They are built with `postgres-pglite/build-pglite-standalone.sh` there (see "Standalone build" in `postgres-pglite/README-PGLITE-DEV.md`), and collected into `src/pytest_pglite/_artifacts/` with:
 
 ```
 PGLITE_REPO=../pglite scripts/fetch-artifacts.sh

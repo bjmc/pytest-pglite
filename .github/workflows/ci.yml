@@ -44,20 +44,20 @@ jobs:
           path: pglite
           submodules: recursive
 
-      - uses: pnpm/action-setup@v4
+      - name: Build the standalone module
         if: steps.cache.outputs.cache-hit != 'true'
-        with:
-          package_json_file: pglite/package.json
+        working-directory: pglite/postgres-pglite
+        run: |
+          mkdir -p dist
+          PGLITE_VERSION=$(jq -r .version ../packages/pglite/package.json) \
+          BUILD_SCRIPT=./build-pglite-standalone.sh \
+          ./build-with-docker.sh
 
+      # for generating PGDATA with the JS build of PGlite (scripts/make-pgdata.mjs)
       - uses: actions/setup-node@v5
         if: steps.cache.outputs.cache-hit != 'true'
         with:
           node-version: 22
-
-      - name: Build the standalone module
-        if: steps.cache.outputs.cache-hit != 'true'
-        working-directory: pglite
-        run: pnpm wasm:build:standalone
 
       - name: Collect artifacts
         if: steps.cache.outputs.cache-hit != 'true'

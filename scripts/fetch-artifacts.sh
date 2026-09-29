@@ -1,7 +1,7 @@
 #!/bin/bash
 # Collect the standalone PGlite build artifacts into src/pytest_pglite/_artifacts:
 #   - pglite-standalone.wasm, pglite-standalone-fs.tar.gz: from a pglite checkout,
-#     built with `pnpm wasm:build:standalone`
+#     built with postgres-pglite/build-pglite-standalone.sh
 #   - pgdata.tar.gz: an initialized PGDATA, created with the JS build of PGlite
 #     (the npm release matching the pglite checkout)
 set -euo pipefail
@@ -9,12 +9,12 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 PGLITE_REPO=${PGLITE_REPO:-"$HERE/../pglite"}
 OUT="$HERE/src/pytest_pglite/_artifacts"
-RELEASE="$PGLITE_REPO/packages/pglite-standalone/release"
+RELEASE="$PGLITE_REPO/postgres-pglite/dist/standalone/bin"
 
 mkdir -p "$OUT"
 cp "$RELEASE/pglite-standalone.wasm" "$RELEASE/pglite-standalone-fs.tar.gz" "$OUT/"
 
-VERSION=$(node -p "require('$PGLITE_REPO/packages/pglite/package.json').version")
+VERSION=$(python3 -c "import json, sys; print(json.load(open(sys.argv[1]))['version'])" "$PGLITE_REPO/packages/pglite/package.json")
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cp "$HERE/scripts/make-pgdata.mjs" "$WORK/"
