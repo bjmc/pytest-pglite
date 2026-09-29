@@ -70,4 +70,4 @@ This produces a pure-Python `py3-none-any` wheel (the WASM module is platform in
 
 ## License
 
-Apache-2.0. The wheel includes PGlite (Apache-2.0) and PostgreSQL (PostgreSQL License), see `licenses/`.
+[PostgreSQL License](LICENSE). The wheel also includes PGlite (Apache-2.0) and PostgreSQL (PostgreSQL License), see `licenses/`.

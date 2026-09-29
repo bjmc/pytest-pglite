@@ -3,7 +3,7 @@ name = "pglite-wasm"
 version = "0.1.0"
 description = "In-memory Postgres (PGlite) for Python tests, running in-process on wasmtime"
 readme = "README.md"
-license = "Apache-2.0 AND PostgreSQL"
+license = "PostgreSQL AND Apache-2.0"
 license-files = ["LICENSE", "licenses/*"]
 requires-python = ">=3.12"
 keywords = ["postgres", "postgresql", "pglite", "wasm", "wasmtime", "testing", "pytest"]
