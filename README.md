@@ -45,7 +45,7 @@ Options (`pytest.ini`/`pyproject.toml`): `pglite_busy_timeout`, and `pglite_log`
 ## Limitations
 
 - **One backend, one database.** PGlite is a single Postgres backend, so connections take turns, and only the `postgres` database can be connected to. A connection that is in a transaction keeps the backend until the transaction ends, and the others wait for it. If a connection waits longer than `busy_timeout` (30 s by default), it gets an error instead. Session state (`SET`, temp tables, prepared statements) is shared by all connections.
-- **No extensions yet.** That includes `plpgsql`.
+- **Few extensions yet.** `plpgsql` and the text search dictionaries (all Snowball languages) are linked into the module; others, such as contrib modules, are not available yet.
 - **Timeouts never fire.** `statement_timeout`, `lock_timeout` and similar settings have no effect.
 
 ## Development
@@ -57,9 +57,9 @@ POSTGRES_PGLITE=../pglite/postgres-pglite scripts/fetch-artifacts.sh
 uv run pytest
 ```
 
-`fetch-artifacts.sh` also records where the artifacts came from in `_artifacts/BUILD_INFO`.
+`fetch-artifacts.sh` creates `pgdata.tar.gz` by running `initdb-standalone.wasm` from the same build on wasmtime (`python -m pytest_pglite._initdb`, see `_initdb.py`), so its catalog always matches the module. It also records where the artifacts came from in `_artifacts/BUILD_INFO`.
 
-CI (`.github/workflows/ci.yml`) builds the artifacts from the postgres-pglite commit pinned in `pglite.env` (cached per commit, as the WASM build takes a while), then runs the tests on Linux and macOS and builds the package. By default the repository is `<owner of this repository>/postgres-pglite`. To package a newer build, update `POSTGRES_PGLITE_REF`, and `PGLITE_VERSION` to the PGlite release it belongs to.
+CI (`.github/workflows/ci.yml`) builds the artifacts from the postgres-pglite commit pinned in `pglite.env` (cached per commit, as the WASM build takes a while), then runs the tests on Linux and macOS and builds the package. By default the repository is `<owner of this repository>/postgres-pglite`. To package a newer build, update `POSTGRES_PGLITE_REF`, and `PGLITE_VERSION` to the PGlite release it belongs to (only used in Postgres' version string).
 
 ## Building
 

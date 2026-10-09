@@ -61,6 +61,21 @@ class PGliteError(RuntimeError):
     pass
 
 
+# errno values of the modules (WASI numbering), for messages
+WASI_ENOENT = 44
+_WASI_ERRNO_NAMES = {
+    2: "EACCES", 20: "EEXIST", 28: "EINVAL", 29: "EIO", 31: "EISDIR", 37: "ENAMETOOLONG",
+    44: "ENOENT", 48: "ENOMEM", 51: "ENOSPC", 54: "ENOTDIR", 55: "ENOTEMPTY", 58: "ENOTSUP",
+}  # fmt: skip
+
+
+def _check_artifact(path: Path) -> None:
+    if not path.exists():
+        raise FileNotFoundError(
+            f"PGlite build artifact not found: {path} (set {ARTIFACTS_DIR_ENV})"
+        )
+
+
 def _read_tar(path: Path) -> bytes:
     data = path.read_bytes()
     return gzip.decompress(data) if data[:2] == b"\x1f\x8b" else data
@@ -93,11 +108,8 @@ class Runtime:
 
     def __init__(self, artifacts: Artifacts | None = None):
         self.artifacts = artifacts or Artifacts.default()
-        for path in (self.artifacts.wasm, self.artifacts.runtime_fs, self.artifacts.pgdata):
-            if not path.exists():
-                raise FileNotFoundError(
-                    f"PGlite build artifact not found: {path} (set {ARTIFACTS_DIR_ENV})"
-                )
+        for path in (self.artifacts.wasm, self.artifacts.runtime_fs):
+            _check_artifact(path)
         cfg = wt.Config()
         cfg.wasm_exceptions = True
         cfg.cache = True  # wasmtime's on-disk compilation cache
@@ -110,6 +122,7 @@ class Runtime:
 
     @cached_property
     def pgdata(self) -> bytes:
+        _check_artifact(self.artifacts.pgdata)
         return _read_tar(self.artifacts.pgdata)
 
 
@@ -123,6 +136,153 @@ def default_runtime() -> Runtime:
         if _default_runtime is None:
             _default_runtime = Runtime()
         return _default_runtime
+
+
+class _Instance:
+    """An instance of one of the standalone modules, in its own wasmtime store.
+
+    Provides the imports the modules need (WASI, and the "pglite" host
+    functions), and wraps the exports for the filesystem and main().
+    """
+
+    def __init__(
+        self,
+        engine: wt.Engine,
+        module: wt.Module,
+        *,
+        env: dict[str, str],
+        stdout: str | os.PathLike | None = None,
+        stderr: str | os.PathLike | None = None,
+        read: Callable[[int, int], int] | None = None,
+        write: Callable[[int, int], int] | None = None,
+        exec: Callable[[int, int, int], int] | None = None,
+    ):
+        self.store = wt.Store(engine)
+        wasi = wt.WasiConfig()
+        wasi.env = list(env.items())
+        # each file is truncated and written through its own handle: don't share them
+        wasi.stdout_file = os.fspath(stdout) if stdout is not None else os.devnull
+        wasi.stderr_file = os.fspath(stderr) if stderr is not None else os.devnull
+        self.store.set_wasi(wasi)
+
+        linker = wt.Linker(engine)
+        linker.define_wasi()
+        i32 = wt.ValType.i32()
+        linker.define_func(
+            "pglite", "read", wt.FuncType([i32, i32], [i32]), read or (lambda p, n: 0)
+        )
+        linker.define_func(
+            "pglite", "write", wt.FuncType([i32, i32], [i32]), write or (lambda p, n: n)
+        )
+        linker.define_func(
+            "pglite", "exec", wt.FuncType([i32, i32, i32], [i32]), exec or self._exec
+        )
+        linker.define_func(
+            "env", "emscripten_notify_memory_growth", wt.FuncType([i32], []), lambda _: None
+        )
+        self._instance = linker.instantiate(self.store, module)
+        self._exports = self._instance.exports(self.store)
+        self.memory: wt.Memory = self._exports["memory"]
+        self._funcs: dict[str, wt.Func] = {}
+        self.call("_initialize")
+
+    def _exec(self, p_command: int, p_stdin_path: int, p_stdout_path: int) -> int:
+        """pglite.exec: Postgres only runs "locale -a" (as in pglite.ts); initdb, see _initdb.py."""
+        if self.string(p_command).split() == ["locale", "-a"] and p_stdout_path:
+            self.write_file(self.string(p_stdout_path), self.read_file("/pglite/locale-a"))
+            return 0
+        return -1
+
+    def call(self, name: str, *args):
+        func = self._funcs.get(name)
+        if func is None:
+            func = self._funcs[name] = self._exports[name]
+        return func(self.store, *args)
+
+    def read(self, ptr: int, length: int) -> bytes:
+        return bytes(self.memory.read(self.store, ptr, ptr + length))
+
+    def write(self, data: bytes, ptr: int) -> None:
+        self.memory.write(self.store, data, ptr)
+
+    def alloc(self, data: bytes) -> int:
+        ptr = self.call("malloc", max(len(data), 1))
+        self.write(data, ptr)
+        return ptr
+
+    def string(self, ptr: int) -> str:
+        end = ptr
+        while self.read(end, 1) != b"\0":
+            end += 1
+        return self.read(ptr, end - ptr).decode()
+
+    def _check(self, rc: int, what: str) -> None:
+        if rc != 0:
+            raise PGliteError(f"{what} failed: {_WASI_ERRNO_NAMES.get(-rc, f'errno {-rc}')}")
+
+    def _call_with_path(self, name: str, path: str, *args) -> int:
+        p_path = self.alloc(path.encode() + b"\0")
+        try:
+            return self.call(name, p_path, *args)
+        finally:
+            self.call("free", p_path)
+
+    def _call_returning_buffer(
+        self, name: str, path: str, missing_ok: bool = False
+    ) -> bytes | None:
+        out = self.alloc(bytes(8))  # char **, size_t *
+        try:
+            rc = self._call_with_path(name, path, out, out + 4)
+            if missing_ok and rc == -WASI_ENOENT:
+                return None
+            self._check(rc, f"{name}({path})")
+            ptr, length = struct.unpack("<II", self.read(out, 8))
+            try:
+                return self.read(ptr, length)
+            finally:
+                self.call("free", ptr)
+        finally:
+            self.call("free", out)
+
+    def load_tar(self, prefix: str, tar: bytes) -> None:
+        p_tar = self.alloc(tar)
+        try:
+            rc = self._call_with_path("pgl_fs_load_tar", prefix, p_tar, len(tar))
+        finally:
+            self.call("free", p_tar)
+        self._check(rc, f"loading filesystem into {prefix}")
+
+    def dump_tar(self, path: str, missing_ok: bool = False) -> bytes | None:
+        """A tarball of the directory path, or None if missing_ok and it does not exist."""
+        return self._call_returning_buffer("pgl_fs_dump_tar", path, missing_ok)
+
+    def read_file(self, path: str) -> bytes:
+        return self._call_returning_buffer("pgl_fs_read_file", path)  # type: ignore[return-value]
+
+    def write_file(self, path: str, data: bytes, mode: int = 0o600) -> None:
+        p_data = self.alloc(data)
+        try:
+            rc = self._call_with_path("pgl_fs_write_file", path, p_data, len(data), mode)
+        finally:
+            self.call("free", p_data)
+        self._check(rc, f"writing {path}")
+
+    def remove_tree(self, path: str) -> None:
+        self._check(self._call_with_path("pgl_fs_remove_tree", path), f"removing {path}")
+
+    def call_main(self, args: list[str]) -> int | None:
+        """Call main(args); return the exit code if it exited, else None.
+
+        main() returns normally when it unwinds to the host, which a backend does
+        once it is ready for queries (see Backend._start).
+        """
+        ptrs = [self.alloc(a.encode() + b"\0") for a in args]
+        argv = self.alloc(struct.pack(f"<{len(ptrs) + 1}I", *ptrs, 0))
+        try:
+            self.call("pgl_call_main", len(args), argv)
+        except wt.ExitTrap as e:
+            return e.code
+        return None
 
 
 class Backend:
@@ -142,28 +302,16 @@ class Backend:
         log_path: str | os.PathLike | None = None,
     ):
         self.runtime = runtime or default_runtime()
-        self.store = wt.Store(self.runtime.engine)
-
         env = {**DEFAULT_ENV, **(env or {})}
-        wasi = wt.WasiConfig()
-        wasi.env = list(env.items())
-        log = os.fspath(log_path) if log_path is not None else os.devnull
-        wasi.stdout_file = log
-        wasi.stderr_file = log
-        self.store.set_wasi(wasi)
-
-        linker = wt.Linker(self.runtime.engine)
-        linker.define_wasi()
-        i32 = wt.ValType.i32()
-        linker.define_func("pglite", "read", wt.FuncType([i32, i32], [i32]), self._host_read)
-        linker.define_func("pglite", "write", wt.FuncType([i32, i32], [i32]), self._host_write)
-        linker.define_func(
-            "env", "emscripten_notify_memory_growth", wt.FuncType([i32], []), lambda _: None
+        self._pg = _Instance(
+            self.runtime.engine,
+            self.runtime.module,
+            env=env,
+            stderr=log_path,  # where Postgres logs
+            read=self._host_read,
+            write=self._host_write,
         )
-        self._instance = linker.instantiate(self.store, self.runtime.module)
-        self._exports = self._instance.exports(self.store)
-        self._memory: wt.Memory = self._exports["memory"]
-        self._funcs: dict[str, wt.Func] = {}
+        self._call = self._pg.call
 
         self._input = b""
         self._read_offset = 0
@@ -171,18 +319,11 @@ class Backend:
         self._need_input: Callable[[], bytes] | None = None
         self._send_output: Callable[[bytes], None] | None = None
 
-        self._call("_initialize")
-        self._load_tar("/", self.runtime.runtime_fs)
-        self._load_tar(PGDATA, pgdata if pgdata is not None else self.runtime.pgdata)
+        self._pg.load_tar("/", self.runtime.runtime_fs)
+        self._pg.load_tar(PGDATA, pgdata if pgdata is not None else self.runtime.pgdata)
         self._start(start_params or DEFAULT_START_PARAMS, env["PGDATABASE"])
 
     # -- plumbing --------------------------------------------------------------
-    def _call(self, name: str, *args):
-        func = self._funcs.get(name)
-        if func is None:
-            func = self._funcs[name] = self._exports[name]
-        return func(self.store, *args)
-
     def _host_read(self, ptr: int, max_len: int) -> int:
         if self._read_offset >= len(self._input) and self._need_input is not None:
             # Postgres wants more input in the middle of a command (COPY FROM STDIN):
@@ -193,39 +334,20 @@ class Backend:
             self._input = self._need_input()
             self._read_offset = 0
         chunk = self._input[self._read_offset : self._read_offset + max_len]
-        self._memory.write(self.store, chunk, ptr)
+        self._pg.write(chunk, ptr)
         self._read_offset += len(chunk)
         return len(chunk)
 
     def _host_write(self, ptr: int, length: int) -> int:
-        self._output.append(bytes(self._memory.read(self.store, ptr, ptr + length)))
+        self._output.append(self._pg.read(ptr, length))
         return length
 
-    def _alloc(self, data: bytes) -> int:
-        ptr = self._call("malloc", max(len(data), 1))
-        self._memory.write(self.store, data, ptr)
-        return ptr
-
-    def _load_tar(self, prefix: str, tar: bytes) -> None:
-        p_prefix = self._alloc(prefix.encode() + b"\0")
-        p_tar = self._alloc(tar)
-        try:
-            rc = self._call("pgl_fs_load_tar", p_prefix, p_tar, len(tar))
-        finally:
-            self._call("free", p_tar)
-            self._call("free", p_prefix)
-        if rc != 0:
-            raise PGliteError(f"loading filesystem into {prefix} failed (errno {-rc})")
-
     def _start(self, start_params: list[str], database: str) -> None:
-        args = ["/pglite/bin/postgres", *start_params, "-D", PGDATA, database]
-        ptrs = [self._alloc(a.encode() + b"\0") for a in args]
-        argv = self._alloc(struct.pack(f"<{len(ptrs) + 1}I", *ptrs, 0))
         self._call("pgl_setPGliteActive", 1)
-        self._call("pgl_call_main", len(args), argv)
+        code = self._pg.call_main(["/pglite/bin/postgres", *start_params, "-D", PGDATA, database])
         status = self._call("pgl_setPGliteExitStatus", -3)
-        if status != PGLITE_EXIT_ALIVE:
-            raise PGliteError(f"PGlite failed to start (exit status {status})")
+        if code is not None or status != PGLITE_EXIT_ALIVE:
+            raise PGliteError(f"PGlite failed to start (exit code {code}, exit status {status})")
         self._call("pgl_startPGlite")
 
     # -- protocol ----------------------------------------------------------------

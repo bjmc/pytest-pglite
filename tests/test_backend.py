@@ -64,3 +64,17 @@ def test_backends_are_isolated(runtime):
     b.exec_protocol_raw(startup())
     a.exec_protocol_raw(query("CREATE TABLE only_in_a (x int)"))
     assert error_code(b.exec_protocol_raw(query("SELECT * FROM only_in_a"))) == "42P01"
+
+
+def test_linked_extensions(runtime):
+    backend = Backend(runtime)
+    backend.exec_protocol_raw(startup())
+    backend.exec_protocol_raw(
+        query(
+            "CREATE FUNCTION twice(x int) RETURNS int LANGUAGE plpgsql AS 'BEGIN RETURN 2 * x; END'"
+        )
+    )
+    assert rows(backend.exec_protocol_raw(query("SELECT twice(21)"))) == [["42"]]
+    assert rows(backend.exec_protocol_raw(query("SELECT to_tsvector('german', 'Häuser')"))) == [
+        ["'haus':1"]
+    ]

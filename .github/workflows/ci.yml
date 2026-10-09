@@ -53,11 +53,9 @@ jobs:
           BUILD_SCRIPT=./build-pglite-standalone.sh \
           ./build-with-docker.sh
 
-      # for generating PGDATA with the JS build of PGlite (scripts/make-pgdata.mjs)
-      - uses: actions/setup-node@v7
+      # for running initdb (python -m pytest_pglite._initdb)
+      - uses: astral-sh/setup-uv@v10.2.0
         if: steps.cache.outputs.cache-hit != 'true'
-        with:
-          node-version: 22
 
       - name: Collect artifacts
         if: steps.cache.outputs.cache-hit != 'true'
