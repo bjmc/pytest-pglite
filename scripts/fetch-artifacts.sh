@@ -1,20 +1,20 @@
 #!/bin/bash
 # Collect the standalone PGlite build artifacts into src/pytest_pglite/_artifacts:
-#   - pglite-standalone.wasm, pglite-standalone-fs.tar.gz: from a pglite checkout,
-#     built with postgres-pglite/build-pglite-standalone.sh
+#   - pglite-standalone.wasm, pglite-standalone-fs.tar.gz: from a postgres-pglite
+#     checkout, built with build-pglite-standalone.sh
 #   - pgdata.tar.gz: an initialized PGDATA, created with the JS build of PGlite
-#     (the npm release matching the pglite checkout)
+#     (the npm release PGLITE_VERSION, from pglite.env)
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")/.." && pwd)
-PGLITE_REPO=${PGLITE_REPO:-"$HERE/../pglite"}
+POSTGRES_PGLITE=${POSTGRES_PGLITE:-"$HERE/../pglite/postgres-pglite"}
 OUT="$HERE/src/pytest_pglite/_artifacts"
-RELEASE="$PGLITE_REPO/postgres-pglite/dist/standalone/bin"
+RELEASE="$POSTGRES_PGLITE/dist/standalone/bin"
+VERSION=$(source "$HERE/pglite.env" && echo "$PGLITE_VERSION")
 
 mkdir -p "$OUT"
 cp "$RELEASE/pglite-standalone.wasm" "$RELEASE/pglite-standalone-fs.tar.gz" "$OUT/"
 
-VERSION=$(python3 -c "import json, sys; print(json.load(open(sys.argv[1]))['version'])" "$PGLITE_REPO/packages/pglite/package.json")
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cp "$HERE/scripts/make-pgdata.mjs" "$WORK/"
@@ -27,8 +27,7 @@ fi
 tar -C "$WORK/pgdata" --owner=0 --group=0 --numeric-owner -czf "$OUT/pgdata.tar.gz" .
 # provenance of the artifacts
 cat > "$OUT/BUILD_INFO" <<END
-pglite_commit=$(git -C "$PGLITE_REPO" rev-parse HEAD)
-postgres_pglite_commit=$(git -C "$PGLITE_REPO/postgres-pglite" rev-parse HEAD)
+postgres_pglite_commit=$(git -C "$POSTGRES_PGLITE" rev-parse HEAD)
 pgdata_npm_version=@electric-sql/pglite@$VERSION
 END
 ls -la "$OUT"

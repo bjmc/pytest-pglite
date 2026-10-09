@@ -50,16 +50,16 @@ Options (`pytest.ini`/`pyproject.toml`): `pglite_busy_timeout`, and `pglite_log`
 
 ## Development
 
-The build artifacts come from a pglite checkout. They are built with `postgres-pglite/build-pglite-standalone.sh` there (see "Standalone build" in `postgres-pglite/README-PGLITE-DEV.md`), and collected into `src/pytest_pglite/_artifacts/` with:
+The build artifacts come from a postgres-pglite checkout. They are built with `build-pglite-standalone.sh` there (see "Standalone build" in its `README-PGLITE-DEV.md`), and collected into `src/pytest_pglite/_artifacts/` with:
 
 ```
-PGLITE_REPO=../pglite scripts/fetch-artifacts.sh
+POSTGRES_PGLITE=../pglite/postgres-pglite scripts/fetch-artifacts.sh
 uv run pytest
 ```
 
 `fetch-artifacts.sh` also records where the artifacts came from in `_artifacts/BUILD_INFO`.
 
-CI (`.github/workflows/ci.yml`) builds the artifacts from the pglite commit pinned in `pglite.env` (cached per commit, as the WASM build takes a while), then runs the tests on Linux and macOS and builds the package. By default the pglite repository is `<owner of this repository>/pglite`. To package a newer pglite build, update `PGLITE_REF`.
+CI (`.github/workflows/ci.yml`) builds the artifacts from the postgres-pglite commit pinned in `pglite.env` (cached per commit, as the WASM build takes a while), then runs the tests on Linux and macOS and builds the package. By default the repository is `<owner of this repository>/postgres-pglite`. To package a newer build, update `POSTGRES_PGLITE_REF`, and `PGLITE_VERSION` to the PGlite release it belongs to.
 
 ## Building
 

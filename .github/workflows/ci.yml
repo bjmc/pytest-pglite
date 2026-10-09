@@ -24,9 +24,10 @@ jobs:
         id: pin
         run: |
           source pglite.env
-          echo "repository=${PGLITE_REPOSITORY:-${{ github.repository_owner }}/pglite}" >> "$GITHUB_OUTPUT"
-          echo "ref=$PGLITE_REF" >> "$GITHUB_OUTPUT"
-          echo "cache-key=pglite-artifacts-$PGLITE_REF-${{ hashFiles('scripts/*') }}" >> "$GITHUB_OUTPUT"
+          echo "repository=${POSTGRES_PGLITE_REPOSITORY:-${{ github.repository_owner }}/postgres-pglite}" >> "$GITHUB_OUTPUT"
+          echo "ref=$POSTGRES_PGLITE_REF" >> "$GITHUB_OUTPUT"
+          echo "version=$PGLITE_VERSION" >> "$GITHUB_OUTPUT"
+          echo "cache-key=pglite-artifacts-$POSTGRES_PGLITE_REF-$PGLITE_VERSION-${{ hashFiles('scripts/*') }}" >> "$GITHUB_OUTPUT"
 
       - name: Cache artifacts
         id: cache
@@ -35,21 +36,20 @@ jobs:
           path: src/pytest_pglite/_artifacts
           key: ${{ steps.pin.outputs.cache-key }}
 
-      - name: Check out pglite
+      - name: Check out postgres-pglite
         if: steps.cache.outputs.cache-hit != 'true'
         uses: actions/checkout@v5
         with:
           repository: ${{ steps.pin.outputs.repository }}
           ref: ${{ steps.pin.outputs.ref }}
-          path: pglite
-          submodules: recursive
+          path: postgres-pglite
 
       - name: Build the standalone module
         if: steps.cache.outputs.cache-hit != 'true'
-        working-directory: pglite/postgres-pglite
+        working-directory: postgres-pglite
         run: |
           mkdir -p dist
-          PGLITE_VERSION=$(jq -r .version ../packages/pglite/package.json) \
+          PGLITE_VERSION=${{ steps.pin.outputs.version }} \
           BUILD_SCRIPT=./build-pglite-standalone.sh \
           ./build-with-docker.sh
 
@@ -61,7 +61,7 @@ jobs:
 
       - name: Collect artifacts
         if: steps.cache.outputs.cache-hit != 'true'
-        run: PGLITE_REPO="$PWD/pglite" scripts/fetch-artifacts.sh
+        run: POSTGRES_PGLITE="$PWD/postgres-pglite" scripts/fetch-artifacts.sh
 
       - uses: actions/upload-artifact@v4
         with:
