@@ -18,7 +18,7 @@ jobs:
     name: Build PGlite artifacts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Read the pglite pin
         id: pin
@@ -31,14 +31,14 @@ jobs:
 
       - name: Cache artifacts
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: src/pytest_pglite/_artifacts
           key: ${{ steps.pin.outputs.cache-key }}
 
       - name: Check out postgres-pglite
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           repository: ${{ steps.pin.outputs.repository }}
           ref: ${{ steps.pin.outputs.ref }}
@@ -54,7 +54,7 @@ jobs:
           ./build-with-docker.sh
 
       # for generating PGDATA with the JS build of PGlite (scripts/make-pgdata.mjs)
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: steps.cache.outputs.cache-hit != 'true'
         with:
           node-version: 22
@@ -63,7 +63,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: POSTGRES_PGLITE="$PWD/postgres-pglite" scripts/fetch-artifacts.sh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pglite-artifacts
           path: src/pytest_pglite/_artifacts
@@ -80,14 +80,14 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         python: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: pglite-artifacts
           path: src/pytest_pglite/_artifacts
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: ${{ matrix.python }}
 
@@ -99,14 +99,14 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: pglite-artifacts
           path: src/pytest_pglite/_artifacts
 
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10.2.0
 
       - name: Build
         run: uv build
@@ -122,7 +122,7 @@ jobs:
           EOF
           /tmp/wheel-venv/bin/python -m pytest -q test_installed.py
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
