@@ -78,3 +78,26 @@ def test_linked_extensions(runtime):
     assert rows(backend.exec_protocol_raw(query("SELECT to_tsvector('german', 'Häuser')"))) == [
         ["'haus':1"]
     ]
+
+
+def test_ltree_btree_gist_and_pgtap(runtime):
+    backend = Backend(runtime)
+    backend.exec_protocol_raw(startup())
+    for sql in (
+        "CREATE EXTENSION ltree",
+        "CREATE EXTENSION btree_gist",
+        "CREATE EXTENSION pgtap",
+        "CREATE TABLE booking (room int, during tstzrange, EXCLUDE USING gist (room WITH =, during WITH &&))",
+        "INSERT INTO booking VALUES (1, '[2026-01-01 10:00, 2026-01-01 11:00)')",
+    ):
+        assert error_code(backend.exec_protocol_raw(query(sql))) is None
+    overlapping = "INSERT INTO booking VALUES (1, '[2026-01-01 10:30, 2026-01-01 12:00)')"
+    assert error_code(backend.exec_protocol_raw(query(overlapping))) == "23P01"
+    assert rows(backend.exec_protocol_raw(query("SELECT subpath('Top.Science.Astronomy', 1)"))) == [
+        ["Science.Astronomy"]
+    ]
+    assert rows(
+        backend.exec_protocol_raw(
+            query("SELECT * FROM plan(1) UNION ALL SELECT is(nlevel('a.b'), 2, 'nlevel')")
+        )
+    ) == [["1..1"], ["ok 1 - nlevel"]]

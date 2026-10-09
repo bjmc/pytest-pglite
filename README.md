@@ -45,7 +45,7 @@ Options (`pytest.ini`/`pyproject.toml`): `pglite_busy_timeout`, and `pglite_log`
 ## Limitations
 
 - **One backend, one database.** PGlite is a single Postgres backend, so connections take turns, and only the `postgres` database can be connected to. A connection that is in a transaction keeps the backend until the transaction ends, and the others wait for it. If a connection waits longer than `busy_timeout` (30 s by default), it gets an error instead. Session state (`SET`, temp tables, prepared statements) is shared by all connections.
-- **Few extensions yet.** `plpgsql` and the text search dictionaries (all Snowball languages) are linked into the module; others, such as contrib modules, are not available yet.
+- **Only some extensions.** `plpgsql`, `ltree`, `btree_gist`, `pgtap` and the text search dictionaries (all Snowball languages) are built in; create them as usual (`CREATE EXTENSION ltree`), e.g. in your `pglite_setup` fixture. Other extensions, such as the rest of contrib, are not available yet.
 - **Timeouts never fire.** `statement_timeout`, `lock_timeout` and similar settings have no effect.
 
 ## Development

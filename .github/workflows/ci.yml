@@ -44,6 +44,11 @@ jobs:
           ref: ${{ steps.pin.outputs.ref }}
           path: postgres-pglite
 
+      # the extensions the standalone build includes from submodules
+      - name: Check out pgtap
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: git -C postgres-pglite submodule update --init --depth 1 pglite/other_extensions/pgtap
+
       - name: Build the standalone module
         if: steps.cache.outputs.cache-hit != 'true'
         working-directory: postgres-pglite
